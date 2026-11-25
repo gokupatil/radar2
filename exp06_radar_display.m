@@ -1,3 +1,5 @@
+clc; clear; close all;
+
 rng(6);
 
 ranges = [30 75 50];
