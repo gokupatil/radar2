@@ -2,7 +2,6 @@ clc; clear; close all;
 d = 36000; Latm = 2; Lmisc = 1;
 T = 500; k = 1.380649e-23; Pr_req = -100; N0_dB = 10*log10(k*T);
 
-% Uplink & Downlink
 [EIRP_u, LFS_u, Pr_u, CN0_u, LM_u] = linkCalc(20, 45, 35, 14, d, 2, 1, Latm, Lmisc, N0_dB, Pr_req);
 [EIRP_d, LFS_d, Pr_d, CN0_d, LM_d] = linkCalc(10, 35, 40, 12, d, 1, 2, Latm, Lmisc, N0_dB, Pr_req);
 
@@ -13,7 +12,6 @@ fprintf('Pr      %8.2f  %8.2f  %+10.2f\n', Pr_u,   Pr_d,   Pr_u   - Pr_d);
 fprintf('C/N0    %8.2f  %8.2f  %+10.2f\n', CN0_u,  CN0_d,  CN0_u  - CN0_d); 
 fprintf('LM      %8.2f  %8.2f  %+10.2f\n', LM_u,   LM_d,   LM_u   - LM_d);
 
-% Plots (Downlink sensitivity curves)
 dv = 1000:1000:50000; 
 Pr_v = EIRP_d + 40 - (92.45 + 20*log10(12) + 20*log10(dv) + 2 + Latm + Lmisc); 
 ev = 20:1:70;  lm1 = (ev + 40 - LFS_d - 2 - Latm - Lmisc) - Pr_req; 
