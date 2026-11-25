@@ -1,35 +1,48 @@
-function results = exp03_doppler_shift(makePlots)
-if nargin < 1, makePlots = true; end
-savedRng = rng;
-rngCleanup = onCleanup(@() rng(savedRng));
-rng(3,'twister');
-c = 3e8;
-fc = 10e9;
-lambda = c/fc;
-velocity = 0:10:100;
-fdVelocity = 2*velocity/lambda;
-fcSweep = [1 3 5 10 24]*1e9;
-fdFrequency = 2*50*fcSweep/c;
-fs = 1e5;
-N = 1000;
-t = (0:N-1)/fs;
-fd = 2*60/lambda;
-baseband = exp(1i*2*pi*fd*t) + 0.5/sqrt(2)*(randn(1,N)+1i*randn(1,N));
-frequency = (-N/2:N/2-1)*fs/N;
-PSD = abs(fftshift(fft(baseband))).^2/(fs*N);
-[~,peak] = max(PSD);
-estimate = frequency(peak);
-assert(abs(estimate-fd) <= fs/N);
-disp('Experiment 3: positive velocity denotes positive Doppler');
-disp(table(velocity(:),fdVelocity(:),'VariableNames',{'Velocity_m_s','Doppler_Hz'}));
-disp(table(fcSweep(:)/1e9,fdFrequency(:),'VariableNames',{'Carrier_GHz','Doppler_Hz'}));
-fprintf('Expected Doppler = %.2f Hz; FFT estimate = %.2f Hz\n',fd,estimate);
-if makePlots
-    figure('Name','Experiment 3: Doppler Shift','Color','w');
-    subplot(3,1,1); plot(velocity,fdVelocity,'-o'); grid on; xlabel('Radial velocity (m/s)'); ylabel('Doppler (Hz)');
-    subplot(3,1,2); plot(fcSweep/1e9,fdFrequency,'-o'); grid on; xlabel('Carrier frequency (GHz)'); ylabel('Doppler (Hz)');
-    subplot(3,1,3); plot(frequency,10*log10(max(PSD,realmin))); grid on; xlim([-10000 10000]);
-    xlabel('Baseband frequency (Hz)'); ylabel('PSD (dB/Hz)'); title('Complex baseband Doppler spectrum');
-end
-results = struct('expectedDoppler_Hz',fd,'estimatedDoppler_Hz',estimate,'frequency_Hz',frequency,'PSD',PSD);
+clc; clear; close all;
+
+c = 3e8; fc = 10e9;
+vel = [10 20 30 40 50];
+dist = [50 100 200 500];
+
+fdVel = (2 .* vel .* fc) ./ c;
+drawPlot(vel, fdVel, 'Target Velocity (m/s)', 'Doppler Frequency (Hz)', 'Target Velocity vs Doppler Frequency', false);
+
+opFreq = [2 5 10 15 20] * 1e9;
+fdFreq = (2 * 30 .* opFreq) ./ c;
+drawPlot(opFreq/1e9, fdFreq, 'Operating Frequency (GHz)', 'Doppler Frequency (Hz)', 'Operating Frequency vs Doppler Frequency', false);
+
+relPow = 1 ./ dist.^4;
+relPow = relPow ./ max(relPow);
+drawPlot(dist, relPow, 'Target Distance (m)', 'Normalized Received Power', 'Effect of Target Distance on Received Power', true);
+
+v = 30; R = 100; fcFft = 10e9;
+fd = (2 * v * fcFft) / c;
+fprintf('Target velocity = %.2f m/s\nTarget distance = %.2f m\nCarrier frequency = %.2f GHz\nDoppler frequency = %.2f Hz\n', v, R, fcFft/1e9, fd);
+
+Fs = 100e3; T = 0.1; t = 0:1/Fs:T-1/Fs; N = length(t);
+rxSig = exp(1j * 2 * pi * fd * t);
+noiseVar = mean(abs(rxSig).^2) / 10^(15/10);
+rxSig = rxSig + sqrt(noiseVar/2) .* (randn(size(rxSig)) + 1j * randn(size(rxSig)));
+
+f = (-N/2:N/2-1) * (Fs / N);
+P = abs(fftshift(fft(rxSig))).^2 / N;
+
+figure;
+subplot(2,1,1); plot(t, real(rxSig), 'b'); grid on;
+xlabel('Time (s)'); ylabel('Amplitude'); title('Received Doppler Signal');
+
+subplot(2,1,2); plot(f, 10*log10(P + eps), 'LineWidth', 1.5); grid on; hold on;
+xline(fd, '--r', 'LineWidth', 2);
+xlabel('Frequency (Hz)'); ylabel('Power (dB)'); title('Doppler Power Spectrum Using FFT');
+xlim([-5000 5000]); legend('FFT Power Spectrum', sprintf('Expected f_D = %.0f Hz', fd));
+
+[~, idx] = max(P);
+detFd = abs(f(idx));
+fprintf('\nExpected Doppler frequency = %.2f Hz\nDetected FFT frequency   = %.2f Hz\n', fd, detFd);
+
+function drawPlot(x, y, xl, yl, ttl, isLog)
+    figure;
+    if isLog, semilogy(x, y, '-o', 'LineWidth', 2, 'MarkerSize', 7);
+    else, plot(x, y, '-o', 'LineWidth', 2, 'MarkerSize', 7); end
+    grid on; xlabel(xl); ylabel(yl); title(ttl);
 end
