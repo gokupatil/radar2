@@ -1,35 +1,34 @@
-function results = exp07_satellite_link_budget(makePlots)
-if nargin < 1, makePlots = true; end
-frequency_GHz = [14 12];
-distance_km = [36000 36000];
-Pt_W = [20 10];
-Gt_dBi = [45 35];
-Gr_dBi = [30 40];
-loss_dB = [2 2];
-noise_dBW = [-125 -125];
-requiredCN_dB = 10;
-Pt_dBW = 10*log10(Pt_W);
-EIRP = Pt_dBW+Gt_dBi;
-FSPL = 92.45+20*log10(frequency_GHz)+20*log10(distance_km);
-Pr = EIRP-FSPL+Gr_dBi-loss_dB;
-CN = Pr-noise_dBW;
-margin = CN-requiredCN_dB;
-combinedCN = -10*log10(sum(10.^(-CN/10)));
-Parameter = {'Frequency (GHz)';'Distance (km)';'Transmit power (dBW)';'Tx gain (dBi)';'EIRP (dBW)';'Free-space loss (dB)';'Rx gain (dBi)';'Other losses (dB)';'Received power (dBW)';'Noise power (dBW)';'C/N (dB)';'Link margin (dB)'};
-values = [frequency_GHz;distance_km;Pt_dBW;Gt_dBi;EIRP;FSPL;Gr_dBi;loss_dB;Pr;noise_dBW;CN;margin];
-summary = table(Parameter,values(:,1),values(:,2),'VariableNames',{'Parameter','Uplink','Downlink'});
-disp('Experiment 7: satellite link budget'); disp(summary);
-fprintf('Combined C/N for independent link noise = %.4f dB\n',combinedCN);
-fprintf('Uplink meets requirement: %d; downlink meets requirement: %d\n',margin>=0);
-assert(all(isfinite(values(:))) && combinedCN<min(CN));
-d = linspace(30000,45000,100);
-p = EIRP(2)-(92.45+20*log10(frequency_GHz(2))+20*log10(d))+Gr_dBi(2)-loss_dB(2);
-if makePlots
-    figure('Name','Experiment 7: Link Budget','Color','w');
-    subplot(2,1,1); plot(d,p,'LineWidth',1.5); grid on;
-    xlabel('Distance (km)'); ylabel('Received power (dBW)'); title('Downlink received power');
-    subplot(2,1,2); bar(margin); set(gca,'XTick',1:2,'XTickLabel',{'Uplink','Downlink'}); grid on;
-    ylabel('Margin (dB)'); title('Negative margin means the specified link does not close');
-end
-results = struct('summary',summary,'CN_dB',CN,'margin_dB',margin,'combinedCN_dB',combinedCN);
+clc; clear; close all;
+d = 36000; Latm = 2; Lmisc = 1;
+T = 500; k = 1.380649e-23; Pr_req = -100; N0_dB = 10*log10(k*T);
+
+% Uplink & Downlink
+[EIRP_u, LFS_u, Pr_u, CN0_u, LM_u] = linkCalc(20, 45, 35, 14, d, 2, 1, Latm, Lmisc, N0_dB, Pr_req);
+[EIRP_d, LFS_d, Pr_d, CN0_d, LM_d] = linkCalc(10, 35, 40, 12, d, 1, 2, Latm, Lmisc, N0_dB, Pr_req);
+
+fprintf('Metric   Uplink     Downlink   Diff (U-D)\n'); 
+fprintf('EIRP    %8.2f  %8.2f  %+10.2f\n', EIRP_u, EIRP_d, EIRP_u - EIRP_d); 
+fprintf('LFS     %8.2f  %8.2f  %+10.2f\n', LFS_u,  LFS_d,  LFS_u  - LFS_d); 
+fprintf('Pr      %8.2f  %8.2f  %+10.2f\n', Pr_u,   Pr_d,   Pr_u   - Pr_d); 
+fprintf('C/N0    %8.2f  %8.2f  %+10.2f\n', CN0_u,  CN0_d,  CN0_u  - CN0_d); 
+fprintf('LM      %8.2f  %8.2f  %+10.2f\n', LM_u,   LM_d,   LM_u   - LM_d);
+
+% Plots (Downlink sensitivity curves)
+dv = 1000:1000:50000; 
+Pr_v = EIRP_d + 40 - (92.45 + 20*log10(12) + 20*log10(dv) + 2 + Latm + Lmisc); 
+ev = 20:1:70;  lm1 = (ev + 40 - LFS_d - 2 - Latm - Lmisc) - Pr_req; 
+lv = 180:1:220; lm2 = (EIRP_d + 40 - lv - 2 - Latm - Lmisc) - Pr_req; 
+gv = 10:1:60;  lm3 = (EIRP_d + gv - LFS_d - 2 - Latm - Lmisc) - Pr_req; 
+
+subplot(2,2,1); plot(dv, Pr_v, 'b', 'LineWidth', 2); grid on; title('Pr vs Distance'); xlabel('d (km)'); ylabel('Pr (dBW)'); 
+subplot(2,2,2); plot(ev, lm1,  'r', 'LineWidth', 2); grid on; title('LM vs EIRP'); xlabel('EIRP (dBW)'); ylabel('LM (dB)'); 
+subplot(2,2,3); plot(lv, lm2,  'm', 'LineWidth', 2); grid on; title('LM vs LFS'); xlabel('LFS (dB)'); ylabel('LM (dB)'); 
+subplot(2,2,4); plot(gv, lm3,  'g', 'LineWidth', 2); grid on; title('LM vs Gain'); xlabel('Gain (dBi)'); ylabel('LM (dB)'); 
+
+function [EIRP, LFS, Pr, CN0, LM] = linkCalc(Pt, Gt, Gr, f, d, Ltx, Lrx, Latm, Lmisc, N0_dB, Pr_req)
+    EIRP = Pt + Gt - Ltx; 
+    LFS  = 92.45 + 20*log10(f) + 20*log10(d); 
+    Pr   = EIRP + Gr - (LFS + Lrx + Latm + Lmisc); 
+    CN0  = Pr - N0_dB; 
+    LM   = Pr - Pr_req; 
 end
