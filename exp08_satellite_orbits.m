@@ -1,104 +1,47 @@
-function results = exp08_satellite_orbits(makePlots,animate)
-if nargin < 1, makePlots = true; end
-if nargin < 2, animate = true; end
-aEarth = 6378.137;
-bEarth = aEarth*(1-1/298.257223563);
+alt = [500 20200 35786];
+inc_deg = [51.6 55 0];
+c = input('Press: 1-LEO, 2-MEO, 3-GEO: ');
+r = 6371 + alt(c);
+inc = deg2rad(inc_deg(c));
 mu = 398600.4418;
-omegaEarth = 7.2921150e-5;
-names = {'LEO','MEO','GEO'};
-altitude = [500 20200 35786];
-a = aEarth+altitude;
-ecc = [0.001 0.010 0.0001];
-inc = [51.6 55 0]*pi/180;
-raan = [0 0 0];
-argPeri = [0 0 0];
-M0 = [0 45 0]*pi/180;
-n = sqrt(mu./a.^3);
-period = 2*pi./n;
-summary = table(names',altitude',a',period'/3600,ecc', ...
-    'VariableNames',{'Orbit','NominalAltitude_km','SemimajorAxis_km','Period_hours','Eccentricity'});
-disp('Experiment 8: two-body Keplerian orbits; Earth rotation angle is zero at t = 0'); disp(summary);
-time = linspace(0,24*3600,3000);
-tracks = cell(1,3);
-colors = lines(3);
-if makePlots
-    orbitFig = figure('Name','Experiment 8: Inertial Orbits','Color','w');
-    orbitAx = axes; hold(orbitAx,'on');
-    [sx,sy,sz] = sphere(50);
-    surf(orbitAx,aEarth*sx,aEarth*sy,bEarth*sz,'FaceColor',[0.15 0.4 0.7],'EdgeColor','none','HandleVisibility','off');
-    satellites = gobjects(1,3);
-end
-for j = 1:3
-    r = orbit_position(a(j),ecc(j),inc(j),raan(j),argPeri(j),M0(j)+n(j)*time);
-    angle = omegaEarth*time;
-    x = cos(angle).*r(1,:) + sin(angle).*r(2,:);
-    y = -sin(angle).*r(1,:) + cos(angle).*r(2,:);
-    z = r(3,:);
-    lon = atan2d(y,x);
-    lat = orbit_latitude(x,y,z,aEarth,bEarth);
-    radius = sqrt(sum(r.^2,1));
-    assert(all(radius>=a(j)*(1-ecc(j))-1e-7) && all(radius<=a(j)*(1+ecc(j))+1e-7));
-    assert(all(abs(lat)<=90) && all(abs(lon)<=180));
-    tracks{j} = struct('longitude_deg',lon,'latitude_deg',lat,'radius_km',radius);
-    if makePlots
-        path = orbit_position(a(j),ecc(j),inc(j),raan(j),argPeri(j),linspace(0,2*pi,700));
-        plot3(orbitAx,path(1,:),path(2,:),path(3,:),'Color',colors(j,:),'DisplayName',names{j});
-        satellites(j) = plot3(orbitAx,r(1,1),r(2,1),r(3,1),'o','MarkerFaceColor',colors(j,:),'Color',colors(j,:),'HandleVisibility','off');
-    end
-end
-if makePlots
-    axis(orbitAx,'equal'); grid(orbitAx,'on'); view(orbitAx,35,24);
-    xlabel(orbitAx,'Inertial X (km)'); ylabel(orbitAx,'Inertial Y (km)'); zlabel(orbitAx,'Inertial Z (km)');
-    title(orbitAx,'Keplerian orbits'); legend(orbitAx,'Location','best');
-    figure('Name','Experiment 8: Ground Tracks','Color','w');
-    for j = 1:3
-        lon = tracks{j}.longitude_deg; lat = tracks{j}.latitude_deg;
-        seam = find(abs(diff(lon))>180)+1;
-        lon(seam) = NaN; lat(seam) = NaN;
-        subplot(3,1,j); plot(lon,lat,'Color',colors(j,:)); grid on;
-        xlim([-180 180]); ylim([-90 90]); xlabel('Longitude (degrees)'); ylabel('Geodetic latitude (degrees)');
-        title([names{j} ' ground track over 24 hours']);
-    end
-    if animate
-        for t = linspace(0,24*3600,360)
-            if ~ishghandle(orbitFig), break; end
-            for j = 1:3
-                r = orbit_position(a(j),ecc(j),inc(j),raan(j),argPeri(j),M0(j)+n(j)*t);
-                set(satellites(j),'XData',r(1),'YData',r(2),'ZData',r(3));
-            end
-            drawnow; pause(0.005);
-        end
-    end
-end
-results = struct('summary',summary,'time_s',time,'groundTracks',{tracks});
+T = 2*pi*sqrt(r^3/mu);
+fprintf('Altitude = %d km\nPeriod = %.2f hours\n', alt(c), T/3600)
+
+th = linspace(0, 2*pi, 500);
+x = r*cos(th);
+y = r*sin(th)*cos(inc);
+z = r*sin(th)*sin(inc);
+figure
+[a, b, d] = sphere(50);
+surf(6371*a, 6371*b, 6371*d, 'EdgeColor', 'none'), hold on, axis equal
+sat = plot3(x(1), y(1), z(1), 'ro', 'MarkerFaceColor', 'r');
+plot3(x, y, z, 'r')
+for k = 1:5:500
+    set(sat, 'XData', x(k), 'YData', y(k), 'ZData', z(k))
+    drawnow
 end
 
-function r = orbit_position(a,e,i,raan,argPeri,M)
-M = mod(M+pi,2*pi)-pi;
-E = M;
-for iteration = 1:30
-    delta = (E-e*sin(E)-M)./(1-e*cos(E));
-    E = E-delta;
-    if max(abs(delta(:)))<1e-13, break; end
-end
-assert(max(abs(E-e*sin(E)-M))<1e-11);
-rp = [a*(cos(E)-e);a*sqrt(1-e^2)*sin(E);zeros(size(E))];
-Rz1 = [cos(raan) -sin(raan) 0;sin(raan) cos(raan) 0;0 0 1];
-Rx = [1 0 0;0 cos(i) -sin(i);0 sin(i) cos(i)];
-Rz2 = [cos(argPeri) -sin(argPeri) 0;sin(argPeri) cos(argPeri) 0;0 0 1];
-r = Rz1*Rx*Rz2*rp;
-end
+we = 2*pi / 86164.1;
+t = linspace(0, 86400, 5000);
+n = sqrt(mu / r^3);
+u = n * t;
 
-function latitude = orbit_latitude(x,y,z,a,b)
-e2 = 1-b^2/a^2;
-p = hypot(x,y);
-lat = atan2(z,p*(1-e2));
-for iteration = 1:12
-    N = a./sqrt(1-e2*sin(lat).^2);
-    next = atan2(z+e2*N.*sin(lat),p);
-    change = max(abs(next(:)-lat(:)));
-    lat = next;
-    if change<1e-13, break; end
-end
-latitude = lat*180/pi;
-end
+lat = asin(sin(inc) * sin(u)) * 180/pi;
+lon_inertial = atan2(cos(inc) * sin(u), cos(u));
+lon = mod((lon_inertial - we*t) * 180/pi + 180, 360) - 180;
+
+wrap_idx = find(abs(diff(lon)) > 180);
+lon_plot = lon;
+lat_plot = lat;
+lon_plot(wrap_idx + 1) = NaN;
+lat_plot(wrap_idx + 1) = NaN;
+
+figure
+plot(lon_plot, lat_plot, 'b', 'LineWidth', 1.5), hold on
+plot(lon(1), lat(1), 'ro', 'MarkerFaceColor', 'r')
+xlim([-180 180])
+ylim([-90 90])
+xlabel('Longitude (deg)')
+ylabel('Latitude (deg)')
+title(sprintf('24-Hour Ground Track (Option %d: %d km)', c, alt(c)))
+grid on
