@@ -81,6 +81,7 @@ LM3 = EIRP_d + G - LFS_d - Lrx_d - Latm - Lmisc - Pr_req;
 
 subplot(2,2,4);
 plot(G,LM3,'g','LineWidth',2);
+%G=10log10(n(piD/lam)^2)
 grid on;
 title('Link Margin vs Receiver Gain');
 xlabel('Receiver Gain (dBi)');
